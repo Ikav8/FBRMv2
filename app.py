@@ -6,8 +6,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-	return 'Hello'
-	#return resultados_y_proximos_partidos_HTML()
+	return resultados_y_proximos_partidos_HTML()
 
 
 if __name__ == "__main__":

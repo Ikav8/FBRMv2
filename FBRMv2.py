@@ -1,6 +1,6 @@
 import bs4
 import requests
-
+from html import unescape
 URL = "https://www.fbrm.org/competicion-327/competiciones-fbrm.aspx"
 
 EQUIPOS = {
@@ -66,7 +66,6 @@ EQUIPOS = {
     }
 }
 
-
 def resultados_y_proximos_partidos_HTML():
 
     lista_resultados_partidos = []
@@ -76,29 +75,23 @@ def resultados_y_proximos_partidos_HTML():
         print('Comienza el web scraping para el equipo: ' + equipo)
         r = requests.post(URL, equipo_form)
         soup = bs4.BeautifulSoup(r.text, 'html.parser')
-        # Parse #
 
-    html = ['<xmp><table id="resultados_tabla"><tr><th>Equipo</th><th>Jornada</th><th>Equipo Local</th><th></th>' +
-            '<th></th><th>Equipo Visitante</th></tr>']
+        # Proximos partidos #
 
-    for resultado_partido in lista_resultados_partidos:
-        html.append(resultado_partido.to_html())
+        div_proximos_partidos = soup.find(id='contenedor_informacion_PProximosPartidos')
+        lista_proximos_partidos.append(parse_proximo_partido(equipo=equipo, div=div_proximos_partidos))
 
-    html.append('</table>')
-    html.append('<h2 style="text-align:center">Próximos Partidos</h2>')
-    html.append('<table id="resultados_tabla"><tr><th>Equipo</th><th>Equipo Local</th><th>Equipo Visitante</th>' +
-                '<th>Fecha</th><th>Lugar</th></tr>')
+        # Resultados #
 
-    for proximo_partido in lista_proximos_partidos:
-        html.append(proximo_partido.to_html())
+        div_resultados = soup.find(id='contenedor_informacion_PUltimaJornada')
+        lista_resultados_partidos.append(parse_resultado_partido(equipo=equipo, div=div_resultados))
 
-    html.append('</table>')
-    html.append('<p style=\"text-align: center;\"><a target=\"_blank\" class=\"btn btn-theme-primary-outline\" ' +
-                'href=\"https://www.fbrm.org/competicion-309/competiciones-fbrm.aspx\">Más resultados y ' +
-                'clasificaciones</a></p>')
-    html.append('</xmp>')
 
-    return "\n".join(html)
+    html_tabla = generar_tabla_html(resultados=lista_resultados_partidos, proximos_partidos=lista_proximos_partidos)
+
+    html_tabla_xmp = '<xmp>' + '\n'.join(html_tabla) + '</xmp>'
+
+    return "\n".join(html_tabla) + "\n" + html_tabla_xmp
 
 
 class ResultadoPartido():
@@ -112,9 +105,13 @@ class ResultadoPartido():
         self.resultado_visitante = resultado_visitante
 
     def to_html(self):
-        return('<tr><td>' + self.equipo + '</td><td>' + self.jornada + '</td><td>' + self.equipo_local + '</td><td>' +
-               self.resultado_local + '</td><td>' + self.resultado_visitante + '</td><td>' + self.equipo_visitante +
-               '</td></tr>')
+        return'<tr><td>' + self.equipo + '</td><td>' + self.jornada + '</td><td>' + self.equipo_local + '</td><td>' +\
+            self.resultado_local + '</td><td>' + self.resultado_visitante + '</td><td>' + self.equipo_visitante +\
+            '</td></tr>'
+
+    def __str__(self):
+        return '[' + self.equipo + '] - ' + self.jornada + ' --> ' + self.equipo_local + ' ( ' + \
+               self.resultado_local + ' ) - ( ' + self.resultado_visitante + ' ) ' + self.equipo_visitante
 
 
 class ProximoPartido():
@@ -129,3 +126,76 @@ class ProximoPartido():
     def to_html(self):
         return ('<tr><td>' + self.equipo + '</td><td>' + self.equipo_local + '</td><td>' + self.equipo_visitante +
                 '</td><td>' + self.fecha_partido + '</td><td>' + self.lugar_partido + '</td></tr>')
+
+    def __str__(self):
+        return '[' + self.equipo + '] - ' + self.equipo_local + ' vs ' + self.equipo_visitante + \
+               ' || ' + self.fecha_partido + ' || ' + self.lugar_partido
+
+
+def parse_proximo_partido(equipo, div):
+    for tr in div.find_all('tr'):
+
+        if 'FUENTE' in unescape(tr.text):
+            tds = tr.find_all('td')
+            tds_decodificada = [unescape(td.text) for td in tds]
+
+            local = tds_decodificada[0].split('"')[1]
+            visitante = tds_decodificada[1].split('"')[1]
+            fecha = tds_decodificada[2].replace('decodificar("', '').replace('")', '').strip().replace(' ', ' - ')
+            lugar = ' - '.join(tds_decodificada[3].split('"')[1::2])
+
+            proximo_partido = ProximoPartido(equipo=equipo,
+                                             equipo_local=local,
+                                             equipo_visitante=visitante,
+                                             fecha_partido=fecha,
+                                             lugar_partido=lugar)
+            return proximo_partido
+
+
+def parse_resultado_partido(equipo, div):
+    for tr in div.find_all('tr'):
+
+        if 'FUENTE' in unescape(tr.text):
+            tds = tr.find_all('td')
+            tds_decodificada = [unescape(td.text) for td in tds]
+
+            jornada = tds_decodificada[0].split('"')[1]
+            res_local = tds_decodificada[1].split('"')[1]
+            eq_local = tds_decodificada[2].split('"')[1]
+            eq_vis = tds_decodificada[3].split('"')[1]
+            res_vis = tds_decodificada[4].split('"')[1]
+
+            resultado_partido = ResultadoPartido(equipo=equipo,
+                                                 jornada=jornada,
+                                                 equipo_local=eq_local,
+                                                 equipo_visitante=eq_vis,
+                                                 resultado_local=res_local,
+                                                 resultado_visitante=res_vis)
+            return resultado_partido
+
+
+def generar_tabla_html(resultados, proximos_partidos):
+
+    html_tabla = ['<table id="resultados_tabla"><tr><th>Equipo</th><th>Jornada</th><th>Equipo Local</th><th></th>' +
+                  '<th></th><th>Equipo Visitante</th></tr>']
+
+    for resultado_partido in resultados:
+        html_tabla.append(resultado_partido.to_html())
+
+    html_tabla.append('</table>')
+    html_tabla.append('<h2 style="text-align:center">Próximos Partidos</h2>')
+    html_tabla.append('<table id="resultados_tabla"><tr><th>Equipo</th><th>Equipo Local</th><th>Equipo Visitante</th>' +
+                      '<th>Fecha</th><th>Lugar</th></tr>')
+
+    for proximo_partido in proximos_partidos:
+        html_tabla.append(proximo_partido.to_html())
+
+    html_tabla.append('</table>')
+    html_tabla.append('<p style=\"text-align: center;\"><a target=\"_blank\" class=\"btn btn-theme-primary-outline\" ' +
+                      'href=\"https://www.fbrm.org/competicion-309/competiciones-fbrm.aspx\">Más resultados y ' +
+                      'clasificaciones</a></p>')
+
+    return html_tabla
+
+
+print(resultados_y_proximos_partidos_HTML())
