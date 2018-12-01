@@ -192,7 +192,7 @@ def generar_tabla_html(resultados, proximos_partidos):
 
     html_tabla.append('</table>')
     html_tabla.append('<p style=\"text-align: center;\"><a target=\"_blank\" class=\"btn btn-theme-primary-outline\" ' +
-                      'href=\"https://www.fbrm.org/competicion-309/competiciones-fbrm.aspx\">Más resultados y ' +
+                      'href=\"https://www.fbrm.org/competicion-327/competiciones-fbrm.aspx\">Más resultados y ' +
                       'clasificaciones</a></p>')
 
     return html_tabla
